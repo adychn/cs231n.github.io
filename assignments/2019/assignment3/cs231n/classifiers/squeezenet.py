@@ -3,7 +3,7 @@ import tensorflow as tf
 NUM_CLASSES = 1000
 
 class Fire(tf.keras.Model):
-    def __init__(self, inplanes, squeeze_planes, expand1x1_planes, expand3x3_planes,name=None):
+    def __init__(self, inplanes, squeeze_planes, expand1x1_planes, expand3x3_planes, name=None):
         super(Fire, self).__init__(name='%s/fire'%name)
         self.inplanes = inplanes
         self.squeeze = tf.keras.layers.Conv2D(squeeze_planes, input_shape=(inplanes,), kernel_size=1, strides=(1,1), padding="VALID", activation='relu',name='squeeze')

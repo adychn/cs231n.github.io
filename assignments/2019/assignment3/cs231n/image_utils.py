@@ -5,7 +5,13 @@ from builtins import range
 import urllib.request, urllib.error, urllib.parse, os, tempfile
 
 import numpy as np
-from scipy.misc import imread, imresize
+# import scipy.misc
+# from imageio import imread
+# import skimage.transform
+from skimage import transform, io
+from skimage import img_as_ubyte
+from PIL import Image
+# from scipy.misc import io.imread, scipy.misc.imresize
 
 """
 Utility functions used for viewing and processing images.
@@ -38,10 +44,10 @@ SQUEEZENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 def preprocess_image(img):
     """Preprocess an image for squeezenet.
-    
+
     Subtracts the pixel mean and divides by the standard deviation.
     """
-    return (img.astype(np.float32)/255.0 - SQUEEZENET_MEAN) / SQUEEZENET_STD
+    return (img.astype(np.float32) / 255.0 - SQUEEZENET_MEAN) / SQUEEZENET_STD
 
 
 def deprocess_image(img, rescale=False):
@@ -63,8 +69,8 @@ def image_from_url(url):
         _, fname = tempfile.mkstemp()
         with open(fname, 'wb') as ff:
             ff.write(f.read())
-        img = imread(fname)
-        os.remove(fname)
+        img = io.imread(fname)
+        # os.remove(fname)
         return img
     except urllib.error.URLError as e:
         print('URL Error: ', e.reason, url)
@@ -79,11 +85,11 @@ def load_image(filename, size=None):
     - filename: path to file
     - size: size of shortest dimension after rescaling
     """
-    img = imread(filename)
+    img = io.imread(filename) # input is uint8
     if size is not None:
-        orig_shape = np.array(img.shape[:2])
+        orig_shape = img.shape[:2]
         min_idx = np.argmin(orig_shape)
-        scale_factor = float(size) / orig_shape[min_idx]
-        new_shape = (orig_shape * scale_factor).astype(int)
-        img = imresize(img, scale_factor)
-    return img
+        scale_factor = size / orig_shape[min_idx]
+        new_shape = tuple(int(x * scale_factor) for x in orig_shape)
+        img = transform.rescale(img, scale_factor)  # output is float64
+    return img_as_ubyte(img) # transform output back to uint8

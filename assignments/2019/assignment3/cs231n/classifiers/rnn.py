@@ -142,7 +142,28 @@ class CaptioningRNN(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Forwad Pass, loss
+        init_h, init_h_cache= affine_forward(features, W_proj, b_proj)     # 1. N x H, initial hidden state h0.
+        x, x_cache = word_embedding_forward(captions_in, W_embed) # 2. N x T x W, input embedded word vector.
+
+        if self.cell_type == 'rnn':
+            h, cache = rnn_forward(x, init_h, Wx, Wh, b)  # 3. N x T x H, process with RNN cells.
+        else:
+            h, cache = lstm_forward(x, init_h, Wx, Wh, b)  # 3. N x T x H, process with RNN cells.
+
+        scores, scores_cache = temporal_affine_forward(h, W_vocab, b_vocab) # 4. N x T x V, scores
+        loss, dL = temporal_softmax_loss(scores, captions_out, mask)
+
+        # Backward Pass, gradients
+        dx, grads['W_vocab'], grads['b_vocab'] = temporal_affine_backward(dL, scores_cache)
+
+        if self.cell_type == 'rnn':
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_backward(dx, cache)
+        else:
+            dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = lstm_backward(dx, cache)
+
+        grads['W_embed'] = word_embedding_backward(dx, x_cache)
+        dx, grads['W_proj'], grads['b_proj'] = affine_backward(dh0, init_h_cache)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -181,7 +202,7 @@ class CaptioningRNN(object):
 
         # Unpack parameters
         W_proj, b_proj = self.params['W_proj'], self.params['b_proj']
-        W_embed = self.params['W_embed']
+        W_embed = self.params['W_embed'] # V x W
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
         W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
 
@@ -210,8 +231,20 @@ class CaptioningRNN(object):
         # you are using an LSTM, initialize the first cell state to zeros.        #
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        h, _ = affine_forward(features, W_proj, b_proj) # N x H
+        x, _ = word_embedding_forward(self._start, W_embed) # W = (1, V x W)
+        c = np.zeros_like(h)
 
-        pass
+        for i in range(max_length):
+            if self.cell_type == 'rnn':
+                h, _ = rnn_step_forward(x, h, Wx, Wh, b) # x is W, Wx is (W, H)
+            else:
+                h, c, _ = lstm_step_forward(x, h, c, Wx, Wh, b)
+
+            scores, _ = affine_forward(h, W_vocab, b_vocab) # N x V
+            captions[:, i] = np.argmax(scores, axis=1) # N x 1
+            x, _ = word_embedding_forward(captions[:, i], W_embed) # N x W = (N x 1, V x W)
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
