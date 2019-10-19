@@ -101,7 +101,6 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         scores -= scores.max(axis=1).reshape(-1, 1)
-        # scores_of_correct = scores[np.arange(N), y]
         softmax = np.exp(scores) / np.sum(np.exp(scores), axis=1, keepdims=True)
         loss = -np.sum(np.log(softmax[np.arange(N), y]))
         loss = loss / N + reg * (np.sum(W1**2) + np.sum(W2**2))
@@ -115,7 +114,7 @@ class TwoLayerNet(object):
         # grads['W1'] should store the gradient on W1, and be a matrix of same size #
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-        softmax[np.arange(N), y] -= 1
+        softmax[np.arange(N), y] -= 1  # dL/dscore
         softmax /= N
 
         # dW2
@@ -177,7 +176,7 @@ class TwoLayerNet(object):
             # them in X_batch and y_batch respectively.                             #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            idx = np.random.choice(num_train, batch_size)
+            idx = np.random.choice(num_train, batch_size) # replace=True by default
             X_batch = X[idx]
             y_batch = y[idx]
 

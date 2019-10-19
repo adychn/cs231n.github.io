@@ -139,11 +139,14 @@ class KNearestNeighbor(object):
         # []    -        [         ]
         dists = np.sqrt( np.sum(X**2, axis=1, keepdims=1) - 2 * X.dot(self.X_train.T) + np.sum(self.X_train**2, axis=1) )
 
-        # A = np.reshape(np.arange(4*7), (4, 7))
+        # Preferred solution, but AMD CPU runs very slow on these somehow.
         # B = np.rot90(X[:, :, None], 1, (1, 2))
         # C = np.rot90(self.X_train[:, :, None], 1, (1, 2))
         # C = np.rot90(C, 1, (0, 1))
         # dists = np.sqrt(np.sum((B-C)**2, axis=2))
+
+
+
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         return dists
 
@@ -187,16 +190,16 @@ class KNearestNeighbor(object):
             # label.                                                                #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-            # m = {}
-            # for label in closest_y:
-            #     if label not in m:
-            #         m[label] = 1
-            #     else:
-            #         m[label] += 1
-            # listofTuples = sorted(m.items(), key=lambda x: (x[1], x[0]), reverse=True)
-            # y_pred[i] = listofTuples[0][0]
-            idx, counts = np.unique(closest_y, return_counts=True)
-            y_pred[i] = idx[np.argmax(counts)]
+            m = {}
+            for label in closest_y:
+                if label not in m:
+                    m[label] = 1
+                else:
+                    m[label] += 1
+            listofTuples = sorted(m.items(), key=lambda x: (x[1], x[0]), reverse=True)
+            y_pred[i] = listofTuples[0][0]
+            # idx, counts = np.unique(closest_y, return_counts=True)
+            # y_pred[i] = idx[np.argmax(counts)]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

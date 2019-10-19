@@ -22,32 +22,30 @@ def svm_loss_naive(W, X, y, reg):
     - gradient with respect to weights W; an array of same shape as W
     """
     dW = np.zeros(W.shape) # initialize the gradient as zero
+    N, D = X.shape
+    _, C = W.shape
+    loss = 0
 
-    # compute the loss and the gradient
-    num_classes = W.shape[1]
-    num_train = X.shape[0]
-    loss = 0.0
-    for i in range(num_train):
+    for i in range(N):
         scores = X[i].dot(W)
-        correct_class_score = scores[y[i]] # y[i] is the index for correct score
-        for j in range(num_classes):
+        correct_class_score = scores[y[i]]
+        for j in range(C):
             if j == y[i]:
                 continue
-            # the loss function, hinge loss. error needs to be greater than 1.
-            # calculate the score of each class against the correct class and record their
-            # losses if margin is greater than 0.
-            margin = scores[j] - correct_class_score + 1 # note delta = 1
-
+            margin = scores[j] - correct_class_score + 1
             if margin > 0:
                 loss += margin
-                # Hinge loss, checkout https://twice22.github.io/hingeloss/ for explanation
-                dW[:, j] += X[i, :].T
-                dW[:, y[i]] -= X[i, :].T # w_yi intervenes in all lines where margin > 0
+
+                dscore = 1
+                dcorrect_score = -1
+                dx = X[i].T
+                dW[:, j] += dscore * dx             # dL/dwj
+                dW[:, y[i]] += dcorrect_score * dx  # dL/dwy
 
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
-    loss /= num_train
+    loss /= N
 
     # Add regularization to the loss.
     loss += reg * np.sum(W * W)
@@ -61,8 +59,8 @@ def svm_loss_naive(W, X, y, reg):
     # code above to compute the gradient.                                       #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    dW /= num_train
-    dW += reg * W
+    dW /= N
+    dW += reg * 2 * W
 
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -78,7 +76,7 @@ def svm_loss_vectorized(W, X, y, reg):
     Inputs and outputs are the same as svm_loss_naive.
     """
     loss = 0.0
-    dW = np.zeros(W.shape) # initialize the gradient as zero
+    dW = np.zeros(W.shape) # initialize the gradient as zero # D x C
 
     #############################################################################
     # TODO:                                                                     #
@@ -86,16 +84,20 @@ def svm_loss_vectorized(W, X, y, reg):
     # result in loss.                                                           #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    num_classes = W.shape[1]
-    num_train = X.shape[0]
+    N, D = X.shape
+    _, C = W.shape
 
+    # score
     scores = X.dot(W)
-    correct_class_score = scores[np.arange(num_train), y].reshape(num_train, 1)
+    correct_class_score = scores[np.arange(N), y].reshape(N, 1)
+    # margin
+    margin = np.maximum(scores - correct_class_score + 1, 0)
+    margin[np.arange(N), y] = 0  # exclue correct class
+    # loss
+    loss = np.sum(margin) / N
 
-    margin = np.maximum(0, scores + 1 - correct_class_score)  # (500, 10)
-    margin[np.arange(num_train), y] = 0 # correct class has 0 loss
-    loss = margin.sum()
-    loss = loss / num_train + reg * np.sum(W * W)
+    # regularization
+    loss += reg * np.sum(W**2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -109,11 +111,18 @@ def svm_loss_vectorized(W, X, y, reg):
     # loss.                                                                     #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    margin[margin > 0] = 1
-    margin[np.arange(num_train), y] = -np.sum(margin, axis=1)
+    # dL/dscores
+    dscores = np.zeros_like(margin)   # N x C
+    dscores[margin > 0] = 1  # max() backprop, assigning 1 for each inccorect class
+    dscores[np.arange(N), y] = -np.sum(dscores, axis=1)
 
-    dW = X.T.dot(margin)
-    dW = dW / num_train + reg * W
+    # dscores / dx
+    dx = X.T # D x N
+    dW = dx.dot(dscores)
+    dW /= N
+
+    # regularization
+    dW += reg * 2 * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 

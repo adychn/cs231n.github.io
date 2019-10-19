@@ -35,7 +35,7 @@ def softmax_loss_naive(W, X, y, reg):
     N, D = X.shape
     _, C = W.shape
     scores = X.dot(W)
-    scores -= np.max(scores, axis=0)
+    scores -= np.max(scores, axis=1, keepdims=True)
 
     for i in range(N):
         softmax = np.exp(scores[i]) / np.sum(np.exp(scores[i]))
@@ -77,19 +77,24 @@ def softmax_loss_vectorized(W, X, y, reg):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     N, D = X.shape
     _, C = W.shape
+
+    # scores, minus max for numerical stability
     scores = X.dot(W)
-    scores -= np.max(scores, axis=0)
+    scores -= np.max(scores, axis=1, keepdims=True)
+    # softmax
+    softmax = np.exp(scores) / np.sum(np.exp(scores), axis=1, keepdims=True)
+    # loss - cross entropy  H(p, q) = -np.sum(p * log(q))
+    # p is the expected value = 1 (where y is true), log(q) is the estimated value (our calculation).
+    loss = np.sum(-np.log(softmax[np.arange(N), y])) / N
+    loss += reg * np.sum(W**2)
 
-    # loss
-    softmax = np.exp(scores) / (np.sum(np.exp(scores), axis=1, keepdims=True))
-    loss = np.sum(-np.log(softmax[np.arange(N), y]))
-    loss = loss / N + reg * np.sum(W * W)
 
-    # gradient
-    softmax[np.arange(N), y] -= 1 # softmax is p, (p - y_i), we minus the correct label y[i] in each row first.
-    dW = X.T.dot(softmax) # then multiply the rest of gradient
-    dW = dW / N + reg * 2 * W
-
+    # dL/dsoftmax * dsoftmax/dscores = softmax - y (y = 1 at y[i], = 0 at rest of classes) N x C
+    dscores = softmax
+    dscores[np.arange(N), y] -= 1
+    # dscores/dw     D x C
+    dW = X.T.dot(dscores) / N
+    dW += reg * 2 * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
