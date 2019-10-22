@@ -26,18 +26,11 @@ def affine_forward(x, w, b):
     # will need to reshape the input into rows.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    # print(x.shape)
-    # print(w.shape)
-    # print(b.shape)
     D, M = w.shape
     X = x.reshape(-1, D)
 
     xw = X.dot(w)
     out = xw + b  # here we are adding a bias to each neuron instead of every neuron layer.
-    # print(X.shape)
-    # print(xw.shape)
-    # print(out.shape)
-
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -216,11 +209,15 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         z = (x - mean) / std # NxD
         out = gamma * z + beta
 
+
         cache = {'x':x, 'mean':mean, 'std':std, 'gamma':gamma, 'z':z, \
                 'var':var, 'axis':axis, 'layernorm':layernorm}
 
         if layernorm == 0:
-            # running mean and var is per batch.
+            # BN: running mean and var is updated per batch, to get a global sense.
+            # Running average means that the first number gets decay to momentum^(n-1),
+            # the second to momentum^(n-2), and the last is momentum. n is the number
+            # numbers. And in the end sum all up together to get a running number.
             running_mean = momentum * running_mean + (1 - momentum) * mean
             running_var = momentum * running_var + (1 - momentum) * var
 
@@ -333,7 +330,6 @@ def batchnorm_backward_alt(dout, cache):
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-    # cache = {'x':x, 'mean':mean, 'std':std, 'gamma':gamma, 'z':z, 'var':var}
     x = cache['x']
     mean = cache['mean']
     var = cache['var']
@@ -346,12 +342,12 @@ def batchnorm_backward_alt(dout, cache):
     # compute dgamma and dbeta
     dgamma = np.sum(dout * z, axis=axis)
     dbeta = np.sum(dout, axis=axis)
+
     # compute dx
-    dldz = dout * gamma # N x D
-    dldz_sum = np.sum(dldz, axis=0) # D
-    # dx = dldz - dldz_sum / std / N - dldz_sum * z * z / std / N
-    dx = dldz - dldz_sum / N - np.sum(dldz * z, axis=0) * z / N
-    dx /= std
+    # Ref http://cthorey.github.io./backpropagation/
+    dz = dout * gamma    # need to do dz first instead of dout * gamma somethwere else later for accuracy.
+    dx = (N * dz - np.sum(dz, axis=0) - (x - mean) / var * np.sum(dz * (x - mean), axis=0)) / std / N
+
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -481,8 +477,10 @@ def dropout_forward(x, dropout_param):
         # Store the dropout mask in the mask variable.                        #
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+
+        # With dropout, the expected output from this neuron will become px+(1−p)0.
+
         mask = (np.random.rand(*x.shape) < p) / p
-        # print(mask)
         out = x * mask
 
 
@@ -588,8 +586,8 @@ def conv_forward_naive(x, w, b, conv_param):
             for h in range(oH): # output feature map size already tells you how
                                 # many times a sliding window will slide.
                 for d in range(oW):
-                    image_tunnel = x_pad[i, :, (h*s):(h*s+HH), (d*s):(d*s+WW)]
-                    out[i, j, h, d] = np.sum(image_tunnel * w[j, :, :, :]) + b[j] # a point on feature map
+                    patch_tunnel = x_pad[i, :, (h*s):(h*s+HH), (d*s):(d*s+WW)]
+                    out[i, j, h, d] = np.sum(patch_tunnel * w[j, :, :, :]) + b[j] # a point on feature map
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -630,9 +628,9 @@ def conv_backward_naive(dout, cache):
         for j in range(F):
             for k in range(oH):
                 for l in range(oW):
-                    image_tunnel = x_pad[i, :, (k*s):(k*s+HH), (l*s):(l*s+WW)]
-                    dw[j, :, :, :] += image_tunnel * dout[i, j, k, l] # for each filter, x*dout
-                    db[j] += dout[i, j, k, l] # all image's oH * oW feature map, number is f filter
+                    patch_tunnel = x_pad[i, :, (k*s):(k*s+HH), (l*s):(l*s+WW)]
+                    dw[j, :, :, :] += patch_tunnel * dout[i, j, k, l] # x * dout
+                    db[j] += dout[i, j, k, l]  # sum of a oH x oW slice (depth slice), size F.
                     dx[i, :, (k*s):(k*s+HH), (l*s):(l*s+WW)] += w[j, :, :, :] * dout[i, j, k, l]
                     # for each image, and sliding window
 
@@ -680,11 +678,10 @@ def max_pool_forward_naive(x, pool_param):
 
     for i in range(N):
         for j in range(C):
-            frame = x[i, j]
             for k in range(oH):
                 for l in range(oW):
-                    frame_patch = frame[k*s:k*s+pool_height, l*s:l*s+pool_width]
-                    out[i, j, k, l] = np.max(frame_patch)
+                    patch_flat = x[i, j, k*s:k*s+pool_height, l*s:l*s+pool_width]
+                    out[i, j, k, l] = np.max(patch_flat)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -721,17 +718,15 @@ def max_pool_backward_naive(dout, cache):
 
     for i in range(N):
         for j in range(C):
-            frame = x[i, j]
             for k in range(oH):
                 for l in range(oW):
-                    feature_point_grad = dout[i, j, k, l]
-                    frame_patch = frame[k*s:k*s+pool_height, l*s:l*s+pool_width]
+                    patch_flat = x[i, j, k*s:k*s+pool_height, l*s:l*s+pool_width]
                     # Using argmax get the linear index of the max of each patch.
-                    max_index = np.argmax(frame_patch)
+                    max_index = np.argmax(patch_flat)
                     # Find 2d index of max value in 2d array
-                    max_coord = np.unravel_index(max_index, frame_patch.shape)
+                    max_coord = np.unravel_index(max_index, patch_flat.shape)
                     # Only backprop the dout to the max location.
-                    dx[i, j, k*s:k*s+pool_height, l*s:l*s+pool_width][max_coord] = feature_point_grad
+                    dx[i, j, k*s:k*s+pool_height, l*s:l*s+pool_width][max_coord] = dout[i, j, k, l]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -862,16 +857,16 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     N, C, H, W = x.shape
     # reshape to fit layernorm_forward function
     xtrans = x.reshape(N, G, C // G, H, W).transpose((0, 1, 3, 4, 2))
-    x = xtrans.reshape(-1, C // G)
-    NN = len(x)
+    x = xtrans.reshape(-1, C // G)   # NGHW x C // G
+    NGHW = len(x)
+    NHW = NGHW // G
     gamma = gamma.reshape(-1, C // G)
     beta = beta.reshape(-1, C // G)
 
     cache = []
     for i in range(G):
-        # if G is 2, NN is 80, NN // G is 40
-        # [0:40], [40:80]
-        out_group, cache_group = layernorm_forward(x[i*NN//G:(i+1)*NN//G], gamma[i], beta[i], gn_param)
+        # x input here is NHW x C // G
+        out_group, cache_group = layernorm_forward(x[i*NHW:(i+1)*NHW], gamma[i], beta[i], gn_param)
         if out is None:
             out = out_group
         else:
@@ -918,10 +913,11 @@ def spatial_groupnorm_backward(dout, cache):
 
     dout_trans = dout.reshape(N, G, C // G, H, W).transpose((0, 1, 3, 4, 2))
     dout = dout_trans.reshape(-1, C // G)
-    NN = len(dout)
+    NGHW = len(dout)
+    NHW = NGHW // G
 
     for i in range(G):
-        dx_group, dgamma_group, dbeta_group = layernorm_backward(dout[i*NN//G:(i+1)*NN//G], cache[i])
+        dx_group, dgamma_group, dbeta_group = layernorm_backward(dout[i*NHW:(i+1)*NHW], cache[i])
         if dx is None:
             dx = dx_group
             dgamma = dgamma_group

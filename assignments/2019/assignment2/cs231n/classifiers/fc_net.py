@@ -338,7 +338,7 @@ class FullyConnectedNet(object):
         W = 0
         for i in range(self.num_layers):
             W += np.sum(self.params['W'+str(i+1)] ** 2)
-        loss += 0.5 * self.reg * W
+        loss += 0.5 * self.reg * np.sum(W**2)
 
         # gradients
         # - cache: (x, w, b)
